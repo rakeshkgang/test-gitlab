@@ -7,7 +7,7 @@ permissions:
 on:
   push:
     branches:
-      - feature/CTECH-2851
+      - main
   workflow_dispatch:
 
 env:
