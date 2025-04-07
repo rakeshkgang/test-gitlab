@@ -1,8 +1,8 @@
 name: Development CI/CD Pipeline
 
 permissions:
-    id-token: write   
-    contents: read
+  id-token: write   
+  contents: read
 
 on:
   push:
@@ -20,16 +20,6 @@ env:
   MAVEN_DOCKER_IMAGE: maven:3.9.6-amazoncorretto-17-debian
   ENV_NAME: "dev"
   CI_ENV_NAME: "dev"
-  # SERVER_USER: ${{ secrets.DEV_SERVER_USER }}
-  # SERVER_IP: ${{ secrets.DEV_SERVER }}
-  # CURRENT_SERVER_HOST: ${{ secrets.DEV_SERVER_HOST }}
-  # SSH_PRIVATE_KEY: ${{ secrets.DEV_SSH_PRIVATE_KEY }}
-  # ENCRYPTION_PASSWORD: ${{ secrets.DEV_PRE_ENCRYPTION_PASSWORD }}
-  # ENV_POSTGRES_PASSWORD: ${{ secrets.DEV_POSTGRESQL_PASSWORD }}
-  # ENV_POSTGRES_USER: "dev"
-  # ENV_POSTGRES_DB: "dev"
-  # ES_HOST: ${{ secrets.ES_HOST }}
-  # ES_PASSWORD: ${{ secrets.ES_PASSWORD }}
 
 jobs:
   sonarcloud-check:
@@ -59,6 +49,7 @@ jobs:
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
           restore-keys: ${{ runner.os }}-m2
 
+      # SonarCloud Analysis (currently commented out)
       # - name: Run SonarCloud Analysis
       #   env:
       #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -86,6 +77,7 @@ jobs:
       - name: Build with Maven
         run: mvn -P${{ env.ENV_NAME }} clean install
 
+      # Upload build artifacts (optional - commented out)
       # - name: Upload artifact
       #   uses: actions/upload-artifact@v3
       #   with:
@@ -98,140 +90,62 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Download artifact
-        uses: actions/download-artifact@v3
-        with:
-          name: backend-jar
-          path: backend/target/
+      # Download artifact if you uploaded it (currently not uploading)
+      # - name: Download artifact
+      #   uses: actions/download-artifact@v3
+      #   with:
+      #     name: backend-jar
+      #     path: backend/target/
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      # Docker login to GHCR (commented out)
+      # - name: Login to GitHub Container Registry
+      #   uses: docker/login-action@v2
+      #   with:
+      #     registry: ghcr.io
+      #     username: ${{ github.actor }}
+      #     password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          push: true
-          tags: ${{ env.DOCKER_IMAGE_NAME }}:${{ env.ENV_NAME }}
+      # Build and push Docker image (commented out)
+      # - name: Build and push Docker image
+      #   uses: docker/build-push-action@v4
+      #   with:
+      #     context: .
+      #     push: true
+      #     tags: ${{ env.DOCKER_IMAGE_NAME }}:${{ env.ENV_NAME }}
 
-  deploy:
-    needs: package
-    runs-on: ubuntu-latest
-    environment: dev
-    steps:
-      - uses: actions/checkout@v3
+  # Deployment job (fully commented out)
+  # deploy:
+  #   needs: package
+  #   runs-on: ubuntu-latest
+  #   environment: dev
+  #   steps:
+  #     - uses: actions/checkout@v3
 
-      - name: Install SSH key
-        uses: shimataro/ssh-key-action@v2
-        with:
-          key: ${{ env.SSH_PRIVATE_KEY }}
-          known_hosts: unnecessary
-          if_key_exists: replace
+  #     - name: Install SSH key
+  #       uses: shimataro/ssh-key-action@v2
+  #       with:
+  #         key: ${{ env.SSH_PRIVATE_KEY }}
+  #         known_hosts: unnecessary
+  #         if_key_exists: replace
 
-      - name: Add host to known_hosts
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan ${{ env.SERVER_IP }} >> ~/.ssh/known_hosts
-          chmod 644 ~/.ssh/known_hosts
-          echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
+  #     - name: Add host to known_hosts
+  #       run: |
+  #         mkdir -p ~/.ssh
+  #         ssh-keyscan ${{ env.SERVER_IP }} >> ~/.ssh/known_hosts
+  #         chmod 644 ~/.ssh/known_hosts
+  #         echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
 
-      - name: Prepare deployment files
-        run: |
-          export APP_NAME=${APP_NAME}-${ENV_NAME}
-          export PATH_TO_BASEDIR=/opt/${APP_NAME}-cloud
-          export TMP_DIR=/tmp/${APP_NAME}
-          
-          cat > ./docker/dev/.env << EOF
-          ENCRYPTION_PASSWORD=${ENCRYPTION_PASSWORD}
-          CURRENT_SERVER_HOST=${CURRENT_SERVER_HOST}
-          POSTGRES_USER=${ENV_POSTGRES_USER}
-          POSTGRES_DB=${ENV_POSTGRES_DB}
-          POSTGRES_PASSWORD=${ENV_POSTGRES_PASSWORD}
-          BUILD_TAG=${ENV_NAME}
-          ES_HOST="${ES_HOST}"
-          ES_PASSWORD="${ES_PASSWORD}"
-          EOF
-          
-          cat > ./nginx/conf.d-dev/ssl.conf << EOF
-          ssl_certificate /etc/letsencrypt/live/${CURRENT_SERVER_HOST}/fullchain.pem;
-          ssl_certificate_key /etc/letsencrypt/live/${CURRENT_SERVER_HOST}/privkey.pem;
-          EOF
-          
-          sed -i "s/PLACEHOLDER_HOSTNAME/$CURRENT_SERVER_HOST/g" ./nginx/conf.d-dev/app.conf
+  #     - name: Prepare deployment files
+  #       run: |
+  #         export APP_NAME=${APP_NAME}-${ENV_NAME}
+  #         export PATH_TO_BASEDIR=/opt/${APP_NAME}-cloud
+  #         export TMP_DIR=/tmp/${APP_NAME}
+  #         # Prepare your .env and Nginx SSL config here
 
-      # - name: Deploy to server
-      #   run: |
-      #     export APP_NAME=${APP_NAME}-${ENV_NAME}
-      #     export PATH_TO_BASEDIR=/opt/${APP_NAME}-cloud
-      #     export TMP_DIR=/tmp/${APP_NAME}
-          
-      #     ssh $SERVER_USER@$SERVER_IP "rm -rf $TMP_DIR"
-      #     ssh $SERVER_USER@$SERVER_IP "mkdir -p $TMP_DIR/docker/nginx/"
-      #     rsync -avzr ./docker/dev/ $SERVER_USER@$SERVER_IP:$TMP_DIR/docker
-      #     rsync -avzr ./docker/certbot/ $SERVER_USER@$SERVER_IP:$TMP_DIR/docker/certbot
-      #     rsync -avzr ./nginx/conf.d-dev/ $SERVER_USER@$SERVER_IP:$TMP_DIR/docker/nginx/conf.d
-      #     ssh $SERVER_USER@$SERVER_IP "sudo cp -pvrf $TMP_DIR/. $PATH_TO_BASEDIR/"
-      #     ssh $SERVER_USER@$SERVER_IP "sudo install -v -d $PATH_TO_BASEDIR/docker -m 775 -g docker -o root"
-          
-      #     # Update image reference to use GitHub Container Registry
-      #     ssh $SERVER_USER@$SERVER_IP "sed -i 's|registry.gitlab.com/alpha-serve/jira-apps/cloud/cl-mailme|ghcr.io/${{ github.repository }}/mail-me|g' $PATH_TO_BASEDIR/docker/docker-compose.yml"
-          
-      #     # Login to GitHub Container Registry
-      #     ssh $SERVER_USER@$SERVER_IP "echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u ${{ github.actor }} --password-stdin"
-          
-      #     ssh $SERVER_USER@$SERVER_IP "docker compose -p ${APP_NAME} -f $PATH_TO_BASEDIR/docker/docker-compose.yml pull;"
-      #     ssh $SERVER_USER@$SERVER_IP "docker compose -p ${APP_NAME} -f $PATH_TO_BASEDIR/docker/docker-compose.yml up -d;"
-      #     ssh $SERVER_USER@$SERVER_IP "docker compose -p ${APP_NAME} -f $PATH_TO_BASEDIR/docker/docker-compose.yml exec -T mail-me-certbot /etc/letsencrypt/renewal-hooks/post/configure-privileges.sh"
-      #     ssh $SERVER_USER@$SERVER_IP "docker compose -p ${APP_NAME} -f $PATH_TO_BASEDIR/docker/docker-compose.yml restart mail-me-nginx;"
-      #     ssh $SERVER_USER@$SERVER_IP "rm -rf $TMP_DIR"
+  #     - name: Deploy to server
+  #       run: |
+  #         # All deployment SSH/rsync/docker-compose steps here
 
-      # - name: Wait for containers
-      #   run: |
-      #     function wait_for_containers() {
-      #       sleep 5     # Wait 5 seconds before start a checks
-      #       ## Total timeout = TRY_TOTAL * SLEEP_TIMEOUT (Default 120 seconds)
-      #       export TRY_COUNT=0
-      #       export TRY_TOTAL=24
-      #       export SLEEP_TIMEOUT=5
-      #       echo -e "Waiting for \e[34m${APP_NAME}\e[0m containers to be up and running. Timeout set to $((TRY_TOTAL * SLEEP_TIMEOUT)) seconds."
-
-      #       while true; do
-      #         while [ "${TRY_COUNT}" != "${TRY_TOTAL}" ]; do
-      #           set +eo pipefail
-      #           NOT_RUNNING=$(ssh ${SERVER_USER}@${SERVER_IP} "docker compose -p ${APP_NAME} ps -a --format json" | jq -sc '.[] | if type=="array" then .[] else . end' | jq 'select (.State == "running" | not) .Name' | grep -v "run")
-      #           set -eo pipefail
-      #           if [ -z "${NOT_RUNNING}" ]; then
-      #             echo -e "$(date +'%F %T'): All containers are up and \e[1;32mRunning\e[0m...\n"
-      #             echo -e "$(date +'%F %T'): Check if Application is healthy...\n"
-      #             export TRY_COUNT=0
-      #             export TRY_TOTAL=48
-      #             while [ "${TRY_COUNT}" != "${TRY_TOTAL}" ]; do
-      #               set +eo pipefail
-      #               HEALTHY=$(curl -sL ${CURRENT_SERVER_HOST}/health_check.html | grep -o "OK")
-      #               set -eo pipefail
-      #               if [ "${HEALTHY}" == "OK" ]; then
-      #                 echo -e "$(date +'%F %T'): Application available via WEB.\n"
-      #                 return 0
-      #               else
-      #                 TRY_COUNT=$((TRY_COUNT + 1))
-      #                 echo -e "$(date +'%F %T'):  Try ${TRY_COUNT} of a ${TRY_TOTAL}. Waiting for Application availability via WEB..."
-      #                 sleep "${SLEEP_TIMEOUT}"
-      #               fi
-      #             done
-      #           else
-      #             TRY_COUNT=$((TRY_COUNT + 1))
-      #             echo -e "$(date +'%F %T'):  Try ${TRY_COUNT} of a ${TRY_TOTAL}. Waiting for all containers in a Running state..."
-      #             sleep "${SLEEP_TIMEOUT}"
-      #           fi
-      #         done
-      #         echo -e "\e[1;31mFAILED!!!\e[0m \n\e[34m${NOT_RUNNING:-$APP_NAME} \e[0m\n not started correctly in a configured timeout. \e[1;31mPipeline failed...\e[0m"
-      #         exit 1
-      #       done
-      #     }
-          
-      #     export APP_NAME=${APP_NAME}-${ENV_NAME}
-      #     wait_for_containers
+  #     - name: Wait for containers
+  #       run: |
+  #         # Wait for containers and health checks
